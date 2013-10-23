@@ -1,0 +1,5 @@
+run time 20 μs with block size 4 and 16 threads
+run time 25 μs with block size 4 and 16 threads
+run time 24 μs with block size 4 and 16 threads
+run time 14 μs with block size 4 and 16 threads
+run time 36 μs with block size 4 and 16 threads

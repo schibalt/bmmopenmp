@@ -2,7 +2,10 @@
 
 #define BUFSIZE 26
 //#define ARRAY_SIZE 128
+#define __STDC_FORMAT_MACROS
 
+#include <inttypes.h>
+#include <pthread.h>
 #include <omp.h>
 #include <cstdio>
 #include <cstdlib>
@@ -16,6 +19,7 @@
 #include <vector>
 #include <fstream>
 #include <sys/time.h>
+#include <ctgmath>
 
 #ifdef WIN32
 #include <Windows.h>
@@ -28,8 +32,9 @@ using std::ifstream;
 using std::string;
 using std::vector;
 using std::endl;
+using std::pow;
 
-vector<string> split(const string &s, char delim);
+ int ARRAY_SIZE;
 
 uint64_t GetTimeMs64() {
 
@@ -116,21 +121,22 @@ vector<string> instvector(ifstream* matrixfile, string matrixfilename) {
 	//process matrix a
 }
 
-void printmatrix(int ARRAY_SIZE, float** matrix) {
+void printmatrix(int arraysize, float** matrix, string name) {
 
-	for (int x = 0; x < ARRAY_SIZE; x++) {
+	printf("\nprinting %d x %d %s matrix\n\n", arraysize, arraysize,
+			name.c_str());
+	for (int x = 0; x < arraysize; x++) {
 
-		for (int y = 0; y < ARRAY_SIZE; y++)
+		for (int y = 0; y < arraysize; y++)
 			printf("%f ", matrix[x][y]);
-		printf("\n\n");
+		printf("\n");
 	}
-	printf("\n");
 }
 
 int main(int argc, char* argv[]) {
 
-//	ofstream outfile;
-//	outfile.open("bmmexperiments.txt");
+	ofstream outfile;
+	outfile.open("bmmompexperiments.txt", ofstream::app);
 
 	string matrixafilename = argv[2];
 	string matrixbfilename = argv[3];
@@ -147,11 +153,10 @@ int main(int argc, char* argv[]) {
 			answermatrixfilename);
 
 	int nelements = matrixavector.size();
-	int ARRAY_SIZE = sqrt(nelements);
+	ARRAY_SIZE = sqrt(nelements);
 
-	uint64_t starttime = GetTimeMs64();
 	char * pEnd;
-	long block_size = strtol(argv[1], &pEnd, 10);
+	int block_size = strtol(argv[1], &pEnd, 10);
 
 	//inst the arrays
 	float** A = new float*[ARRAY_SIZE];
@@ -176,85 +181,61 @@ int main(int argc, char* argv[]) {
 	}
 	// arrays inst
 
-	printmatrix(ARRAY_SIZE, A);
-	printmatrix(ARRAY_SIZE, B);
-	printmatrix(ARRAY_SIZE, C);
-	printmatrix(ARRAY_SIZE, answer);
+//	printmatrix(ARRAY_SIZE, A, "A");
+//	printmatrix(ARRAY_SIZE, B, "B");
+//	printmatrix(ARRAY_SIZE, C, "C");
+//	printmatrix(ARRAY_SIZE, answer, "answer");
 
-	/*
-	 printf("\n\n");
-	 //this is the normal, working algorithm
-	 for (int i = 0; i < ARRAY_SIZE; i++) {
-	 for (int j = 0; j < ARRAY_SIZE; j++) {
-	 *C[i, j] = 0;
-	 for (int k = 0; k < ARRAY_SIZE; k++) {
-	 int a = *A[i, k];
-	 int b = *B[k, j];
-	 int c = *C[i, j];
-	 int product = c + (a * b);
-	 *C[i, j] = product;
-	 }
-	 }
-	 }*/
+	printf("max %d threads\n", omp_get_max_threads());
 
-	//print
-	//				printf("\n\n");
-	//				for (int x = 0; x < ARRAY_SIZE; x++) {
-	//
-	//					for (int y = 0; y < ARRAY_SIZE; y++) {
-	//						 if (*C[x] != ARRAY_SIZE)
-	//						 exit(EXIT_FAILURE);
-	//						 exit(1);
-	//						printf("%f", C[x][y]);
-	//					}
-	//					printf("\n\n");
-	//				}
+	int numthreads;
+
+	if (block_size > 0) {
+		numthreads = pow(block_size, 2);
+		omp_set_num_threads(numthreads);
+	} else{
+		block_size = sqrt(omp_get_max_threads());
+		numthreads = pow(block_size, 2);
+		omp_set_num_threads(numthreads);
+	}
+
+	uint64_t start = GetTimeMs64();
+
 	for (int i = 0; i < ARRAY_SIZE; i += block_size) {
 
 		for (int j = 0; j < ARRAY_SIZE; j += block_size) {
 
-			   omp_set_num_threads(16);
-#pragma omp parallel for
+#pragma omp parallel
 			for (int k = 0; k < ARRAY_SIZE; k++) {
+//#pragma omp critical
+//								printf("%d threads\n", omp_get_num_threads());
 
-				int myidx = omp_get_thread_num() % ARRAY_SIZE;
-				int myidy = omp_get_thread_num() / ARRAY_SIZE;
+				int myidx = omp_get_thread_num() % block_size;
+				int myidy = omp_get_thread_num() / block_size;
+
+//#pragma omp critical
+//				printf(
+//						"Hello from thread %02i i = %02d j = %02d k = %02d myidx = %02d myidy = %d\n",
+//						omp_get_thread_num(), i, j, k, myidx, myidy);
+#pragma omp critical
 				C[i + myidx][j + myidy] = C[i + myidx][j + myidy]
 						+ A[i + myidx][k] * B[k][j + myidy];
-			}
+			} //k
 
-//			uint64_t blockstarttime = GetTimeMs64();
+		} //j
+	} //i
 
-			/* old stuff
-			 for (int i = 0; i < ARRAY_SIZE; i++) {
+	uint64_t end = GetTimeMs64();
+	uint64_t runtime = end - start;
 
-			 for (int jj = j; jj < min((int) (j + block_size), ARRAY_SIZE);
-			 jj++) {
-
-			 for (int kk = i;
-			 kk < min((int) (i + block_size), ARRAY_SIZE); kk++)
-
-			 C[i][jj] = C[i][jj] + (A[i][kk] * B[kk][jj]);
-			 }
-			 }
-			 * 			 */
-			/*uint64_t blockendtime = GetTimeMs64();
-			 uint64_t blockruntime = blockendtime - blockstarttime;
-
-			 int blocknumber = j / block_size
-			 + i / (pow(block_size, 2) / ARRAY_SIZE);
-			 stringstream ss;
-			 ss << "\tblock " << blocknumber << " runtime " << blockruntime
-			 << " microseconds (" << blockruntime / 1000000
-			 << " seconds/" << blockruntime / 1000000 / 60
-			 << " minutes)\n";
-
-			 string logElement = ss.str();
-			 outfile << logElement;}
-			 *
-			 */
-		}
-	}
+	printmatrix(ARRAY_SIZE, C, "C");
+	printmatrix(ARRAY_SIZE, answer, "answer");
+	char buffer[50];
+	sprintf(buffer, "run time %" PRIu64 " μs with block size %i and %i threads\n", runtime,
+			block_size, numthreads);
+	printf("%s",buffer);
+	outfile << buffer;
+	outfile.close();
 
 // De-Allocate memory to prevent memory leak
 	for (int i = 0; i < ARRAY_SIZE; ++i) {
@@ -264,27 +245,11 @@ int main(int argc, char* argv[]) {
 		delete[] C[i];
 		delete[] answer[i];
 	}
+
 	delete[] A;
 	delete[] B;
 	delete[] C;
 	delete[] answer;
-
-	uint64_t endtime = GetTimeMs64();
-	uint64_t runtime = endtime - starttime;
-
-//			struct tm now;
-	char timebuf[BUFSIZE];
-//			size_t err;
-
-// Convert to an ASCII representation.
-//			err = strftime(timebuf, BUFSIZE, "%c", &now);
-
-	stringstream ss;
-	ss << timebuf << ": \t runtime " << runtime << " microseconds ("
-			<< runtime / 1000000 << " seconds/" << runtime / 1000000 / 60
-			<< " minutes) for block size " << block_size << "\n";
-
-//	outfile.close();
 
 	return 0;
 }
