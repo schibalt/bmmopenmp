@@ -3,6 +3,7 @@
 #define BUFSIZE 26
 //#define ARRAY_SIZE 128
 
+#include <omp.h>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -201,44 +202,57 @@ int main(int argc, char* argv[]) {
 	//				for (int x = 0; x < ARRAY_SIZE; x++) {
 	//
 	//					for (int y = 0; y < ARRAY_SIZE; y++) {
-					//						 if (*C[x] != ARRAY_SIZE)
-					//						 exit(EXIT_FAILURE);
-					//						 exit(1);
+	//						 if (*C[x] != ARRAY_SIZE)
+	//						 exit(EXIT_FAILURE);
+	//						 exit(1);
 	//						printf("%f", C[x][y]);
 	//					}
 	//					printf("\n\n");
 	//				}
-
 	for (int i = 0; i < ARRAY_SIZE; i += block_size) {
 
 		for (int j = 0; j < ARRAY_SIZE; j += block_size) {
 
-			uint64_t blockstarttime = GetTimeMs64();
-			for (int i = 0; i < ARRAY_SIZE; i++) {
+			   omp_set_num_threads(16);
+#pragma omp parallel for
+			for (int k = 0; k < ARRAY_SIZE; k++) {
 
-				for (int jj = j; jj < min((int) (j + block_size), ARRAY_SIZE);
-						jj++) {
-
-					for (int kk = i;
-							kk < min((int) (i + block_size), ARRAY_SIZE); kk++)
-
-						C[i][jj] = C[i][jj] + (A[i][kk] * B[kk][jj]);
-				}
+				int myidx = omp_get_thread_num() % ARRAY_SIZE;
+				int myidy = omp_get_thread_num() / ARRAY_SIZE;
+				C[i + myidx][j + myidy] = C[i + myidx][j + myidy]
+						+ A[i + myidx][k] * B[k][j + myidy];
 			}
 
-			uint64_t blockendtime = GetTimeMs64();
-			uint64_t blockruntime = blockendtime - blockstarttime;
+//			uint64_t blockstarttime = GetTimeMs64();
 
-			int blocknumber = j / block_size
-					+ i / (pow(block_size, 2) / ARRAY_SIZE);
-			stringstream ss;
-			ss << "\tblock " << blocknumber << " runtime " << blockruntime
-					<< " microseconds (" << blockruntime / 1000000
-					<< " seconds/" << blockruntime / 1000000 / 60
-					<< " minutes)\n";
+			/* old stuff
+			 for (int i = 0; i < ARRAY_SIZE; i++) {
 
-			string logElement = ss.str();
-//			outfile << logElement;
+			 for (int jj = j; jj < min((int) (j + block_size), ARRAY_SIZE);
+			 jj++) {
+
+			 for (int kk = i;
+			 kk < min((int) (i + block_size), ARRAY_SIZE); kk++)
+
+			 C[i][jj] = C[i][jj] + (A[i][kk] * B[kk][jj]);
+			 }
+			 }
+			 * 			 */
+			/*uint64_t blockendtime = GetTimeMs64();
+			 uint64_t blockruntime = blockendtime - blockstarttime;
+
+			 int blocknumber = j / block_size
+			 + i / (pow(block_size, 2) / ARRAY_SIZE);
+			 stringstream ss;
+			 ss << "\tblock " << blocknumber << " runtime " << blockruntime
+			 << " microseconds (" << blockruntime / 1000000
+			 << " seconds/" << blockruntime / 1000000 / 60
+			 << " minutes)\n";
+
+			 string logElement = ss.str();
+			 outfile << logElement;}
+			 *
+			 */
 		}
 	}
 
