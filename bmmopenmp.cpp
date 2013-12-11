@@ -34,7 +34,7 @@ using std::vector;
 using std::endl;
 using std::pow;
 
- int ARRAY_SIZE;
+int ARRAY_SIZE;
 
 uint64_t GetTimeMs64() {
 
@@ -63,8 +63,7 @@ uint64_t GetTimeMs64() {
 
 	uint64_t ret = tv.tv_usec;
 	/* Convert from micro seconds (10^-6) to milliseconds (10^-3) */
-	ret /= 1000;
-
+//	ret /= 1000;
 	/* Adds the seconds (10^0) after converting them to milliseconds (10^-3) */
 	ret += (tv.tv_sec * 1000);
 
@@ -135,9 +134,6 @@ void printmatrix(int arraysize, float** matrix, string name) {
 
 int main(int argc, char* argv[]) {
 
-	ofstream outfile;
-	outfile.open("bmmompexperiments.txt", ofstream::app);
-
 	string matrixafilename = argv[2];
 	string matrixbfilename = argv[3];
 	string answermatrixfilename = argv[4];
@@ -190,15 +186,11 @@ int main(int argc, char* argv[]) {
 
 	int numthreads;
 
-	if (block_size > 0) {
-		numthreads = pow(block_size, 2);
-		omp_set_num_threads(numthreads);
-	} else{
+	if (block_size <= 0)
 		block_size = sqrt(omp_get_max_threads());
-		numthreads = pow(block_size, 2);
-		omp_set_num_threads(numthreads);
-	}
 
+	numthreads = pow(block_size, 2);
+	omp_set_num_threads(numthreads);
 	uint64_t start = GetTimeMs64();
 
 	for (int i = 0; i < ARRAY_SIZE; i += block_size) {
@@ -217,9 +209,10 @@ int main(int argc, char* argv[]) {
 //				printf(
 //						"Hello from thread %02i i = %02d j = %02d k = %02d myidx = %02d myidy = %d\n",
 //						omp_get_thread_num(), i, j, k, myidx, myidy);
-#pragma omp critical
-				C[i + myidx][j + myidy] = C[i + myidx][j + myidy]
+				float result = C[i + myidx][j + myidy]
 						+ A[i + myidx][k] * B[k][j + myidy];
+#pragma omp critical
+				C[i + myidx][j + myidy] += result;
 			} //k
 
 		} //j
@@ -231,9 +224,13 @@ int main(int argc, char* argv[]) {
 	printmatrix(ARRAY_SIZE, C, "C");
 	printmatrix(ARRAY_SIZE, answer, "answer");
 	char buffer[50];
-	sprintf(buffer, "run time %" PRIu64 " μs with block size %i and %i threads\n", runtime,
-			block_size, numthreads);
-	printf("%s",buffer);
+	sprintf(buffer,
+			"run time %" PRIu64 " μs with block size %i and %i threads\n",
+			runtime, block_size, numthreads);
+	printf("%s", buffer);
+	ofstream outfile;
+	outfile.open("bmmompexperiments.txt", ofstream::app);
+
 	outfile << buffer;
 	outfile.close();
 
